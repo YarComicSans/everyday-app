@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "bus-timetable-ns",
-    "slug": "bus-timetable-ns",
+    "name": "everyday-app",
+    "slug": "everyday-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bustimetablens",
+    "scheme": "everydayapp",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
