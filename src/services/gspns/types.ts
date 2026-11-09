@@ -54,6 +54,27 @@ export type Departure = {
   codes: DepartureCode[];
 };
 
+/** One line-direction button on the network map (`/mreza`). */
+export type MapLine = {
+  /** Numeric id the map endpoints take as `linija`. */
+  id: number;
+  /** Button text: line number + direction letter (`4A`, `3AB`), or the bare number for circular lines (`7A`). */
+  code: string;
+  /** Route as the map writes it, e.g. `LIMAN 4 - CENTAR - ŽELEZNIČKA STANICA`. */
+  title: string;
+};
+
+export type RouteStop = {
+  name: string;
+  /** Metres along the route from the first stop. */
+  offset: number;
+};
+
+/** Ordered stops of one line direction, first stop at offset 0. */
+export type Route = {
+  stops: RouteStop[];
+};
+
 export type LineDirections = {
   lineNumber: string;
   lineName: string;

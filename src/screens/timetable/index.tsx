@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,14 +13,20 @@ import {
   DAY_TYPE_LABEL,
   decodeSelection,
   getServiceDay,
+  loadRoutes,
   loadTimetable,
   nextDepartureIndex,
+  nowDepartureIndex,
+  routeKey,
+  tripMinutes,
   type Departure,
+  type DirectionRef,
+  type Route,
 } from '@/services/gspns';
 
 import { DepartureRow } from './components/departure-row';
-import { ROW_HEIGHT } from './components/departure-row/styles';
-import { missingText } from './helpers';
+import type { RowStatus } from './components/departure-row/types';
+import { missingText, nowSummary, rowLayout, stopDetails } from './helpers';
 import { styles } from './styles';
 
 export default function TimetableScreen() {
@@ -28,6 +34,8 @@ export default function TimetableScreen() {
   const selection = useMemo(() => decodeSelection(linesParam), [linesParam]);
   const now = useNow();
   const service = getServiceDay(now);
+  /** Fractional service minute, for "in N min" and which stop is next. */
+  const nowMinute = service.minute + now.getSeconds() / 60;
 
   // Keyed by service date: coming back to the app on another service day refetches.
   const result = useAsync(`timetable:${linesParam}:${service.date}`, () =>
@@ -35,11 +43,26 @@ export default function TimetableScreen() {
   );
   const listRef = useRef<FlatList<Departure>>(null);
   const didAutoScroll = useRef(false);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const toggle = useCallback((i: number) => setExpandedIndex((e) => (e === i ? null : i)), []);
 
   const combined = useMemo(
     () => (result.status === 'success' ? combineDepartures(selection, result.data.lines) : null),
     [result.status, result.data, selection],
   );
+
+  // Stop lists load in the background; the timetable never waits for them.
+  const directions = useMemo(() => {
+    const unique = new Map<string, DirectionRef>();
+    for (const d of combined?.departures ?? []) unique.set(routeKey(d), d);
+    return [...unique.values()];
+  }, [combined]);
+  const validFrom = result.status === 'success' ? result.data.day.validFrom : '';
+  const routesResult = useAsync(`routes:${validFrom}:${directions.map(routeKey).join(',')}`, () =>
+    validFrom ? loadRoutes(validFrom, directions) : Promise.resolve<Record<string, Route>>({}),
+  );
+  const routes = routesResult.status === 'success' ? routesResult.data : undefined;
+  const routesLoading = routesResult.status === 'loading';
 
   if (result.status === 'error') {
     return (
@@ -59,8 +82,31 @@ export default function TimetableScreen() {
   }
 
   const { departures, missing } = combined;
+  const routeOf = (d: Departure) => routes?.[routeKey(d)];
   const next = nextDepartureIndex(departures, service.minute);
-  const scrollTo = next === -1 ? departures.length - 1 : Math.max(0, next - 1);
+  const onRoad = nowDepartureIndex(departures, service.minute, (d) => tripMinutes(routeOf(d)));
+  const canExpand = (i: number) => i === onRoad || (next !== -1 && i >= next);
+  const expanded = expandedIndex !== null && canExpand(expandedIndex) ? expandedIndex : -1;
+  const expandedDetails =
+    expanded === -1
+      ? undefined
+      : stopDetails(departures[expanded], routeOf(departures[expanded]), {
+          onRoad: expanded === onRoad,
+          nowMinute,
+          loading: routesLoading,
+        });
+  const layout = {
+    now: onRoad,
+    expanded,
+    expandedLines: expandedDetails?.kind === 'stops' ? expandedDetails.stops.length : 1,
+  };
+
+  const statusOf = (i: number, d: Departure): RowStatus =>
+    i === onRoad ? 'now' : i === next ? 'next' : d.serviceMinute < service.minute ? 'past' : 'upcoming';
+
+  // Open on the bus on the road, or the one before NEXT for context.
+  const fallback = next === -1 ? departures.length - 1 : Math.max(0, next - 1);
+  const scrollTo = onRoad === -1 ? fallback : Math.min(onRoad, fallback);
 
   return (
     <ThemedView style={styles.container}>
@@ -68,7 +114,7 @@ export default function TimetableScreen() {
       <SafeAreaView edges={['top']} style={styles.header}>
         <ThemedText type="smallBold">{DAY_TYPE_LABEL[result.data.day.dayType]}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Times are departures from the starting terminal, not arrivals at your stop.
+          Times are departures from the starting terminal. Tap a bus for estimated stop times.
         </ThemedText>
         {missing.map((m) => (
           <ThemedView key={m.lineNumber} type="backgroundElement" style={styles.notice}>
@@ -86,17 +132,24 @@ export default function TimetableScreen() {
         <FlatList
           data={departures}
           keyExtractor={(d, i) => `${d.lineNumber}-${d.direction}-${d.serviceMinute}-${i}`}
-          getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+          getItemLayout={(_, index) => rowLayout(index, layout)}
           ref={listRef}
           // initialScrollIndex is unreliable inside the native stack on iOS; jump once laid out.
           onLayout={() => {
             if (didAutoScroll.current || departures.length === 0) return;
             didAutoScroll.current = true;
-            listRef.current?.scrollToOffset({ offset: ROW_HEIGHT * scrollTo, animated: false });
+            listRef.current?.scrollToOffset({ offset: rowLayout(scrollTo, layout).offset, animated: false });
           }}
-          extraData={service.minute}
+          extraData={`${now.getTime()}:${expanded}:${onRoad}:${routesResult.status}`}
           renderItem={({ item, index }) => (
-            <DepartureRow departure={item} past={item.serviceMinute < service.minute} next={index === next} />
+            <DepartureRow
+              departure={item}
+              index={index}
+              status={statusOf(index, item)}
+              summary={index === onRoad ? nowSummary(item, routeOf(item), nowMinute) : undefined}
+              details={index === expanded ? expandedDetails : undefined}
+              onToggle={canExpand(index) ? toggle : undefined}
+            />
           )}
           ListEmptyComponent={
             <ThemedView style={styles.empty}>

@@ -42,3 +42,6 @@ example
 /ios
 /android
 .claude/logs/
+
+# GSPNS test fixtures — downloaded by `npm run fixtures:update` (and `pretest` when missing)
+/src/services/gspns/__fixtures__/

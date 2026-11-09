@@ -1,9 +1,12 @@
 import { GspError } from './errors';
 import { ParseError, parseDepartures, parseLineList, parseTimetableInfo } from './parse';
+import { buildRoute, matchMapLine, parseMapLines, parseMapPath, parseMapStops, type DirectionRef } from './route';
+import { readRouteCache, writeRouteCache } from './route-cache';
 import { resolveDayType } from './service-day';
-import type { DayType, LineDirections, LineInfo, LineSelection, TimetableInfo } from './types';
+import type { DayType, LineDirections, LineInfo, LineSelection, Route, TimetableInfo } from './types';
 
-const BASE = 'https://www.gspns.rs/red-voznje';
+const SITE = 'https://www.gspns.rs';
+const BASE = `${SITE}/red-voznje`;
 /** Urban ("gradski") timetable only. */
 const RV = 'rvg';
 
@@ -41,6 +44,56 @@ export const fetchDepartures = (validFrom: string, dayType: DayType, values: str
       values.map((v) => `linija[]=${encodeURIComponent(v)}`).join('&'),
     parseDepartures,
   );
+
+export const fetchMapLines = () => request('Network map', `${SITE}/mreza`, parseMapLines);
+
+const fetchRoute = async (id: number) => {
+  const [stops, path] = await Promise.all([
+    request('Map stops', `${SITE}/mreza-get-stajalista-tacke?linija=${id}`, parseMapStops),
+    request('Map route', `${SITE}/mreza-get-linija-tacke?linija=${id}`, parseMapPath),
+  ]);
+  return buildRoute(path, stops);
+};
+
+export const routeKey = (d: Pick<DirectionRef, 'lineNumber' | 'direction'>) => `${d.lineNumber}:${d.direction}`;
+
+/**
+ * Ordered stops for each given line direction, keyed by `routeKey`. Network-map data is
+ * cached per timetable version, so only directions not seen before cost a request.
+ * Never throws: directions that can't be matched or fetched are simply missing.
+ */
+export async function loadRoutes(validFrom: string, directions: DirectionRef[]): Promise<Record<string, Route>> {
+  const cache = await readRouteCache(validFrom);
+  let changed = false;
+  try {
+    if (!cache.mapLines) {
+      cache.mapLines = await fetchMapLines();
+      changed = true;
+    }
+  } catch {
+    return {};
+  }
+  const mapLines = cache.mapLines;
+
+  const matched = directions.flatMap((d) => {
+    const line = matchMapLine(mapLines, d);
+    return line ? [{ key: routeKey(d), id: line.id }] : [];
+  });
+  const missing = [...new Set(matched.map((m) => m.id))].filter((id) => !cache.routes[id]);
+  const fetched = await Promise.all(missing.map((id) => fetchRoute(id).catch(() => undefined)));
+  missing.forEach((id, i) => {
+    const route = fetched[i];
+    if (route) {
+      cache.routes[id] = route;
+      changed = true;
+    }
+  });
+  if (changed) await writeRouteCache(cache);
+
+  const result: Record<string, Route> = {};
+  for (const m of matched) if (cache.routes[m.id]) result[m.key] = cache.routes[m.id];
+  return result;
+}
 
 export type DayContext = TimetableInfo & { dayType: DayType };
 
