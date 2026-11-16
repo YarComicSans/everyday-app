@@ -35,7 +35,14 @@
           "imageWidth": 76
         }
       ],
-      "./plugins/gspns-trust"
+      "./plugins/gspns-trust",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true
+        }
+      ],
+      "./plugins/video-seek-icons"
     ],
     "experiments": {
       "typedRoutes": true,
