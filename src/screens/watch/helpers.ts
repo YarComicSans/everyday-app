@@ -1,14 +1,9 @@
-import { VideoError } from '@/services/youtube';
+import { VideoError, type PlaybackErrorCode } from '@/services/youtube';
 
 /** The `t=` route param as seconds, or undefined when it is missing or not a valid position. */
 export function parseStartAt(t: string | undefined): number | undefined {
   const seconds = t ? Number(t) : NaN;
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
-}
-
-/** Seconds to start a Video at: `startAt` (a Video Link's `t=`) beats its Resume Position. */
-export function startPosition(startAt: number | undefined, resumeAt: () => number): number {
-  return startAt ?? resumeAt();
 }
 
 /** Playback distance (seconds) between periodic Resume Position saves. */
@@ -36,22 +31,54 @@ export function relatedMeta(video: Labels): string | undefined {
   return [video.viewsLabel, video.publishedLabel].filter(Boolean).join(' · ') || undefined;
 }
 
+/** The HTTP 403 YouTube answers an expired or rejected Stream with, as a player message or a playlist request error. */
+const FORBIDDEN = /\b403\b|forbidden/i;
+
 /**
- * What to do about a player error. A Stream YouTube rejects with a 403 (usually an expired link)
- * is re-resolved once; a second failure in a row, or any other error, is shown as `failed`.
+ * Whether a playback failure means YouTube rejected the Stream: a player error message mentioning
+ * a 403 (Android "Response code: 403", iOS "HTTP 403: Forbidden") or an error carrying `status: 403`
+ * (the iOS master playlist request). A `VideoError` never is: it already says what went wrong.
  */
-export function playerErrorOutcome(
-  message: string,
-  reResolvedInARow: boolean,
+export function isStreamRejected(error: unknown): boolean {
+  if (error instanceof VideoError) return false;
+  if (typeof error === 'string') return FORBIDDEN.test(error);
+  if (typeof error !== 'object' || error === null) return false;
+  if ('status' in error && error.status === 403) return true;
+  return 'message' in error && typeof error.message === 'string' && FORBIDDEN.test(error.message);
+}
+
+/** Any playback failure (player message, thrown error) as the `VideoError` to show; `code` names where it happened. */
+export function playbackError(error: unknown, code: PlaybackErrorCode): VideoError {
+  if (error instanceof VideoError) return error;
+  const detail = typeof error === 'string' ? error : error instanceof Error ? error.message : undefined;
+  return new VideoError('failed', { code: isStreamRejected(error) ? 'http-403' : code, detail, cause: error });
+}
+
+/**
+ * A re-resolve playback has not yet moved past: the position it restored. Until playback really
+ * progresses beyond it, another rejection counts as the second failure in a row. null when none.
+ */
+export type Recovery = { restoredAt: number } | null;
+
+/** Seconds of playback past the restore point that prove a re-resolved Stream works. */
+const PROGRESS_SECONDS = 2;
+
+/** The pending re-resolve after a `timeUpdate` at `currentTime`: cleared once playback moved past it. */
+export function recoveryAfter(recovery: Recovery, currentTime: number): Recovery {
+  return recovery && currentTime >= recovery.restoredAt + PROGRESS_SECONDS ? null : recovery;
+}
+
+/**
+ * What to do about a playback failure. A Stream YouTube rejects (usually an expired link) is
+ * re-resolved once; a rejection before playback moved past that re-resolve, or any other failure, is shown.
+ */
+export function streamFailureOutcome(
+  error: unknown,
+  recovery: Recovery,
+  code: PlaybackErrorCode,
 ): { reResolve: true } | { error: VideoError } {
-  const forbidden = /\b403\b/.test(message);
-  if (forbidden && !reResolvedInARow) return { reResolve: true };
-  return {
-    error: new VideoError('failed', {
-      code: forbidden ? 'http-403' : 'player',
-      detail: message,
-    }),
-  };
+  if (isStreamRejected(error) && !recovery) return { reResolve: true };
+  return { error: playbackError(error, code) };
 }
 
 /** The Video's page on youtube.com, for "Open in YouTube". */
