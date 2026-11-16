@@ -19,7 +19,7 @@ export function parseVideoLink(text: string): VideoLink | null {
 
   let videoId: string | undefined;
   if (host === 'youtu.be') {
-    videoId = path.slice(1);
+    videoId = path.slice(1).replace(/\/$/, '');
   } else if (path === '/watch') {
     videoId = query.get('v');
   } else if (path.startsWith('/shorts/')) {
@@ -48,11 +48,11 @@ function safeDecode(value: string): string {
   }
 }
 
-/** `90`, `90s` or `1h2m3s` → seconds; undefined when absent, zero or malformed. */
+/** `90`, `90s`, `1h2m3s` or `1m30` (unitless seconds last) → seconds; undefined when absent, zero or malformed. */
 function parseStartTime(t: string | undefined): number | undefined {
   if (!t) return undefined;
   if (/^\d+s?$/.test(t)) return Number.parseInt(t, 10) || undefined;
-  const parts = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(t);
+  const parts = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t);
   if (!parts) return undefined;
   const [, h = '0', m = '0', s = '0'] = parts;
   return Number(h) * 3600 + Number(m) * 60 + Number(s) || undefined;

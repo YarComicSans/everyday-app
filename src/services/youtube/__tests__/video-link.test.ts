@@ -15,6 +15,8 @@ describe('parseVideoLink', () => {
     `https://youtu.be/${ID}`,
     `youtu.be/${ID}`,
     `https://youtu.be/${ID}?si=AbCdEf123`,
+    `https://youtu.be/${ID}/`,
+    `https://youtu.be/${ID}/?si=AbCdEf123`,
     `https://www.youtube.com/shorts/${ID}`,
     `youtube.com/shorts/${ID}?feature=share`,
     `  https://youtu.be/${ID}  `,
@@ -30,6 +32,9 @@ describe('parseVideoLink', () => {
     [`https://youtu.be/${ID}?si=xyz&t=45s`, 45],
     [`m.youtube.com/watch?t=1h&v=${ID}`, 3600],
     [`youtube.com/shorts/${ID}?t=5`, 5],
+    [`https://youtu.be/${ID}?t=1m30`, 90],
+    [`https://youtu.be/${ID}?t=1h0m5`, 3605],
+    [`https://youtu.be/${ID}/?t=45`, 45],
   ])('reads the start time from %s', (text, startAt) => {
     expect(parseVideoLink(text)).toEqual({ videoId: ID, startAt });
   });
