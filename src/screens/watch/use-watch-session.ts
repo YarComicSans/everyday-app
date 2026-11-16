@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/immutability -- the expo-video player is configured by mutating it, by design */
 import { useEventListener } from 'expo';
 import { useVideoPlayer, type VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { AppState, Dimensions, Platform } from 'react-native';
 
 import { useAsync } from '@/hooks/use-async';
@@ -14,9 +14,17 @@ import {
   type QualityMode,
   type ScreenSize,
 } from '@/services/playback';
-import { loadVideo, VideoError, type LoadedVideo, type Stream, type VideoSummary } from '@/services/youtube';
+import {
+  isStreamStale,
+  loadVideo,
+  resolveStream,
+  VideoError,
+  type LoadedVideo,
+  type Stream,
+  type VideoSummary,
+} from '@/services/youtube';
 
-import { isRealEnd, isSaveDue, startPosition } from './helpers';
+import { isRealEnd, isSaveDue, playerErrorOutcome, startPosition } from './helpers';
 
 export type WatchStatus =
   | { state: 'loading' }
@@ -77,6 +85,10 @@ export function useWatchSession(videoId: string, startAt?: number): WatchSession
     lastSaved: null as number | null,
     position: 0,
     duration: 0,
+    /** A 403 already triggered a re-resolve since playback last ran; a second one is shown. */
+    reResolvedInARow: false,
+    /** A re-resolve is in flight; further triggers wait for it. */
+    reResolving: false,
   });
 
   const save = useCallback((position: number) => {
@@ -105,6 +117,35 @@ export function useWatchSession(videoId: string, startAt?: number): WatchSession
     [player],
   );
 
+  /** The loaded Stream, or a freshly resolved one when it is close to expiring. */
+  const freshStream = useCallback(async (video: VideoSummary, stream: Stream) => {
+    if (!isStreamStale(stream, Date.now())) return stream;
+    return resolveStream(video.id);
+  }, []);
+
+  /**
+   * Resolves a new Stream and reloads it at the current position, keeping the Quality Mode.
+   * `force` re-resolves even a fresh Stream (after a 403); otherwise only a stale one is replaced.
+   */
+  const reResolve = useCallback(
+    async (force: boolean, autoplay: boolean) => {
+      const s = session.current;
+      const { video, loaded } = s;
+      if (!video || !loaded || s.reResolving) return;
+      if (!force && !isStreamStale(loaded.stream, Date.now())) return;
+      s.reResolving = true;
+      try {
+        const stream = await resolveStream(video.id);
+        // The page may have moved on to another Video meanwhile.
+        if (session.current.video !== video) return;
+        await applySource(video, stream, loaded.mode, s.position, autoplay);
+      } finally {
+        s.reResolving = false;
+      }
+    },
+    [applySource],
+  );
+
   // A (re)loaded Video: start it at `startAt`, or else its Resume Position.
   useEffect(() => {
     if (!data) return;
@@ -113,6 +154,7 @@ export function useWatchSession(videoId: string, startAt?: number): WatchSession
     s.video = data.video;
     s.duration = data.video.durationSeconds;
     s.loaded = null;
+    s.reResolvedInARow = false;
     const at = startPosition(startAt, () => resumeAt(data.video.id));
     applySource(data.video, data.stream, getQualityMode(), at, true).catch(
       (error: unknown) => live && setFailure({ for: data, error: asVideoError(error, 'source') }),
@@ -128,15 +170,23 @@ export function useWatchSession(videoId: string, startAt?: number): WatchSession
     const s = session.current;
     player.maxResolution = maxResolutionFor(qualityMode, screenSize());
     if (Platform.OS !== 'ios' || !s.video || !s.loaded || s.loaded.mode === qualityMode) return;
-    applySource(s.video, s.loaded.stream, qualityMode, player.currentTime, player.playing).catch(
-      (error: unknown) => data && setFailure({ for: data, error: asVideoError(error, 'quality') }),
-    );
-  }, [qualityMode, player, applySource, data]);
+    const { video, loaded } = s;
+    const at = player.currentTime;
+    const playing = player.playing;
+    freshStream(video, loaded.stream)
+      .then((stream) => applySource(video, stream, qualityMode, at, playing))
+      .catch((error: unknown) => data && setFailure({ for: data, error: asVideoError(error, 'quality') }));
+  }, [qualityMode, player, applySource, freshStream, data]);
 
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
     const s = session.current;
     if (isPlaying) {
       setEnded(null);
+      s.reResolvedInARow = false;
+      // Resuming after a long pause: swap a Stream that is about to expire before YouTube rejects it.
+      reResolve(false, true).catch(
+        (error: unknown) => data && setFailure({ for: data, error: asVideoError(error, 'resume') }),
+      );
       if (!s.started && s.video) {
         recordStart(s.video);
         s.started = true;
@@ -159,22 +209,40 @@ export function useWatchSession(videoId: string, startAt?: number): WatchSession
     setEnded(data);
   });
 
+  // A rejected Stream (403, usually an expired link) is re-resolved once and continues where it was.
   useEventListener(player, 'statusChange', ({ status, error }) => {
     if (status !== 'error' || !data) return;
-    setFailure({ for: data, error: new VideoError('failed', { code: 'player', detail: error?.message }) });
+    const s = session.current;
+    if (s.reResolving) return;
+    const outcome = playerErrorOutcome(error?.message ?? '', s.reResolvedInARow);
+    if ('error' in outcome) {
+      setFailure({ for: data, error: outcome.error });
+      return;
+    }
+    s.reResolvedInARow = true;
+    reResolve(true, true).catch((e: unknown) => setFailure({ for: data, error: asVideoError(e, 'reresolve') }));
+  });
+
+  /** Shows `error` for the current load (used from listeners that outlive a render). */
+  const fail = useEffectEvent((error: unknown, code: string) => {
+    if (data) setFailure({ for: data, error: asVideoError(error, code) });
   });
 
   // Save when the app goes to the background, and when the page is left.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'background') save(session.current.position);
+      // Back in the foreground: a Stream that went stale meanwhile is replaced at the same position.
+      if (state === 'active') {
+        reResolve(false, player.playing).catch((error: unknown) => fail(error, 'foreground'));
+      }
     });
     const s = session.current;
     return () => {
       subscription.remove();
       save(s.position);
     };
-  }, [save]);
+  }, [save, reResolve, player]);
 
   const status: WatchStatus =
     load.status === 'loading'
@@ -186,6 +254,12 @@ export function useWatchSession(videoId: string, startAt?: number): WatchSession
           : ended === data
             ? { state: 'ended' }
             : { state: 'ready' };
+
+  // Any failure stops the player, so no stale audio (e.g. a previous Video's) plays behind the error.
+  const failed = status.state === 'error';
+  useEffect(() => {
+    if (failed) player.pause();
+  }, [failed, player]);
 
   const related = data?.related ?? [];
   return {

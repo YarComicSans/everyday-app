@@ -1,18 +1,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { VideoView } from 'expo-video';
 import { useCallback } from 'react';
-import { ActivityIndicator, FlatList, View } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/base/themed-text';
 import { ThemedView } from '@/base/themed-view';
-import { ErrorView } from '@/components/error-view';
+import { PlaybackFailureView } from '@/components/playback-failure-view';
 import { VideoRow } from '@/components/video-row';
 import type { VideoSummary } from '@/services/youtube';
 
 import { QualityControl } from './components/quality-control';
 import { UpNextOverlay } from './components/up-next-overlay';
-import { infoLine, parseStartAt, relatedMeta } from './helpers';
+import { infoLine, parseStartAt, relatedMeta, youtubeWatchUrl } from './helpers';
 import { styles } from './styles';
 import { useWatchSession } from './use-watch-session';
 
@@ -39,10 +39,25 @@ export default function WatchScreen() {
     player.play();
   }, [player]);
 
+  const openInYouTube = useCallback(() => {
+    Linking.openURL(youtubeWatchUrl(id)).catch(() => {});
+  }, [id]);
+
+  const back = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/video');
+  }, []);
+
   if (status.state === 'error') {
     return (
       <ThemedView style={styles.container}>
-        <ErrorView error={status.error} onRetry={retry} />
+        <PlaybackFailureView
+          kind={status.error.kind}
+          code={status.error.code}
+          onRetry={retry}
+          onOpenInYouTube={openInYouTube}
+          onBack={back}
+        />
       </ThemedView>
     );
   }
