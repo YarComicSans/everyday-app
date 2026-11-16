@@ -2,7 +2,7 @@ import type { HistoryEntry } from '@/services/history';
 
 import { VideoError } from '@/services/youtube';
 
-import { metaOf, progressOf, searchAvailability, searchFailure, submitTarget } from '../helpers';
+import { searchAvailability, searchFailure, submitTarget, watchedFraction } from '../helpers';
 
 describe('submitTarget', () => {
   it('opens the Watch page for a Video Link', () => {
@@ -51,30 +51,18 @@ const entry = (over: Partial<HistoryEntry> = {}): HistoryEntry => ({
   ...over,
 });
 
-describe('progressOf', () => {
+describe('watchedFraction', () => {
   it('is the Resume Position as a fraction of the duration', () => {
-    expect(progressOf(entry({ resumePosition: 50, durationSeconds: 200 }))).toBe(0.25);
+    expect(watchedFraction(entry({ resumePosition: 50, durationSeconds: 200 }))).toBe(0.25);
   });
 
   it('is full for a Watched Video', () => {
-    expect(progressOf(entry({ resumePosition: 196, watched: true }))).toBe(1);
+    expect(watchedFraction(entry({ resumePosition: 196, watched: true }))).toBe(1);
   });
 
   it('is absent when there is no entry or the duration is unknown', () => {
-    expect(progressOf(undefined)).toBeUndefined();
-    expect(progressOf(entry({ durationSeconds: 0 }))).toBeUndefined();
-  });
-});
-
-describe('metaOf', () => {
-  it('joins views and age', () => {
-    expect(metaOf({ viewsLabel: '1.2M views', publishedLabel: '3 years ago' })).toBe('1.2M views · 3 years ago');
-  });
-
-  it('shows whichever part is known, or nothing', () => {
-    expect(metaOf({ viewsLabel: '12 views' })).toBe('12 views');
-    expect(metaOf({ publishedLabel: '1 day ago' })).toBe('1 day ago');
-    expect(metaOf({})).toBeUndefined();
+    expect(watchedFraction(undefined)).toBeUndefined();
+    expect(watchedFraction(entry({ durationSeconds: 0 }))).toBeUndefined();
   });
 });
 

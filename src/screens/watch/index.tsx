@@ -8,11 +8,12 @@ import { ThemedText } from '@/base/themed-text';
 import { ThemedView } from '@/base/themed-view';
 import { PlaybackFailureView } from '@/components/playback-failure-view';
 import { VideoRow } from '@/components/video-row';
+import { metaLine } from '@/components/video-row/helpers';
 import type { VideoSummary } from '@/services/youtube';
 
 import { QualityControl } from './components/quality-control';
 import { UpNextOverlay } from './components/up-next-overlay';
-import { infoLine, parseStartAt, relatedMeta, youtubeWatchUrl } from './helpers';
+import { infoLine, parseStartAt, youtubeWatchUrl } from './helpers';
 import { styles } from './styles';
 import { useWatchSession } from './use-watch-session';
 
@@ -108,7 +109,7 @@ export default function WatchScreen() {
             title={item.title}
             channel={item.channel}
             durationSeconds={item.durationSeconds}
-            meta={relatedMeta(item)}
+            meta={metaLine(item)}
             onPress={() => open(item)}
           />
         )}

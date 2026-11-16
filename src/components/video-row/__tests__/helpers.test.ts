@@ -1,4 +1,4 @@
-import { formatDuration } from '../helpers';
+import { formatDuration, metaLine } from '../helpers';
 
 describe('formatDuration', () => {
   it.each([
@@ -17,5 +17,17 @@ describe('formatDuration', () => {
 
   it.each([0, -3, NaN])('returns null for %p so the badge is hidden', (seconds) => {
     expect(formatDuration(seconds)).toBeNull();
+  });
+});
+
+describe('metaLine', () => {
+  it('joins views and age', () => {
+    expect(metaLine({ viewsLabel: '1.2M views', publishedLabel: '3 years ago' })).toBe('1.2M views · 3 years ago');
+  });
+
+  it('shows whichever part is known, or nothing', () => {
+    expect(metaLine({ viewsLabel: '12 views' })).toBe('12 views');
+    expect(metaLine({ publishedLabel: '1 day ago' })).toBe('1 day ago');
+    expect(metaLine({})).toBeUndefined();
   });
 });

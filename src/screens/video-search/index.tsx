@@ -6,13 +6,14 @@ import { ActivityIndicator, Alert, FlatList, Pressable, View } from 'react-nativ
 import { ThemedText } from '@/base/themed-text';
 import { ThemedView } from '@/base/themed-view';
 import { VideoRow } from '@/components/video-row';
+import { metaLine } from '@/components/video-row/helpers';
 import { useAsync } from '@/hooks/use-async';
 import { useHistory } from '@/services/history';
 import { search, type VideoSummary } from '@/services/youtube';
 
 import { SearchBox } from './components/search-box';
 import { SearchFailure } from './components/search-failure';
-import { metaOf, progressOf, searchAvailability, searchFailure, submitTarget, type WatchParams } from './helpers';
+import { searchAvailability, searchFailure, submitTarget, watchedFraction, type WatchParams } from './helpers';
 import { styles } from './styles';
 
 const openWatch = (params: WatchParams) => router.push({ pathname: '/video/watch', params });
@@ -93,7 +94,7 @@ export default function VideoSearchScreen() {
               title={item.title}
               channel={item.channel}
               durationSeconds={item.durationSeconds}
-              progress={progressOf(item)}
+              watchedFraction={watchedFraction(item)}
               onPress={() => openWatch({ id: item.videoId })}
               onLongPress={() => remove(item.videoId)}
             />
@@ -119,8 +120,8 @@ export default function VideoSearchScreen() {
               title={item.title}
               channel={item.channel}
               durationSeconds={item.durationSeconds}
-              meta={metaOf(item)}
-              progress={progressOf(byId.get(item.id))}
+              meta={metaLine(item)}
+              watchedFraction={watchedFraction(byId.get(item.id))}
               onPress={() => openWatch({ id: item.id })}
             />
           )}

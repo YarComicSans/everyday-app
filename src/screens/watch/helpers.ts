@@ -1,3 +1,4 @@
+import { metaLine } from '@/components/video-row/helpers';
 import { VideoError, type PlaybackErrorCode } from '@/services/youtube';
 
 /** The `t=` route param as seconds, or undefined when it is missing or not a valid position. */
@@ -19,16 +20,9 @@ export function isRealEnd(currentTime: number, duration: number): boolean {
   return duration > 0 && currentTime > 1;
 }
 
-type Labels = { viewsLabel?: string; publishedLabel?: string };
-
 /** The info block's second line: `channel · views · age`, skipping unknown parts. */
-export function infoLine(video: Labels & { channel: string }): string {
-  return [video.channel, video.viewsLabel, video.publishedLabel].filter(Boolean).join(' · ');
-}
-
-/** A Related Video row's `views · age` line, or undefined when neither is known. */
-export function relatedMeta(video: Labels): string | undefined {
-  return [video.viewsLabel, video.publishedLabel].filter(Boolean).join(' · ') || undefined;
+export function infoLine(video: { channel: string; viewsLabel?: string; publishedLabel?: string }): string {
+  return [video.channel, metaLine(video)].filter(Boolean).join(' · ');
 }
 
 /** The HTTP 403 YouTube answers an expired or rejected Stream with, as a player message or a playlist request error. */

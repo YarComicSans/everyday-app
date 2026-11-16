@@ -15,13 +15,13 @@ export const VideoRow = memo(function VideoRow({
   channel,
   durationSeconds,
   meta,
-  progress,
+  watchedFraction,
   onPress,
   onLongPress,
 }: VideoRowProps) {
   const theme = useTheme();
   const duration = formatDuration(durationSeconds);
-  const watched = progress !== undefined ? Math.min(1, Math.max(0, progress)) : 0;
+  const watched = watchedFraction !== undefined ? Math.min(1, Math.max(0, watchedFraction)) : 0;
 
   return (
     <Pressable
@@ -44,8 +44,8 @@ export const VideoRow = memo(function VideoRow({
           </View>
         )}
         {watched > 0 && (
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${watched * 100}%` }]} />
+          <View style={styles.watchedTrack}>
+            <View style={[styles.watchedFill, { width: `${watched * 100}%` }]} />
           </View>
         )}
       </View>

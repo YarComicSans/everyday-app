@@ -6,7 +6,6 @@ import {
   isSaveDue,
   parseStartAt,
   recoveryAfter,
-  relatedMeta,
   streamFailureOutcome,
   youtubeWatchUrl,
 } from '../helpers';
@@ -65,14 +64,6 @@ describe('infoLine', () => {
   it('skips missing parts', () => {
     expect(infoLine({ channel: 'Blender', publishedLabel: '3 years ago' })).toBe('Blender · 3 years ago');
     expect(infoLine({ channel: 'Blender' })).toBe('Blender');
-  });
-});
-
-describe('relatedMeta', () => {
-  it('is "views · age", or undefined when both are unknown', () => {
-    expect(relatedMeta({ viewsLabel: '5K views', publishedLabel: '1 day ago' })).toBe('5K views · 1 day ago');
-    expect(relatedMeta({ viewsLabel: '5K views' })).toBe('5K views');
-    expect(relatedMeta({})).toBeUndefined();
   });
 });
 
