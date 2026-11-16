@@ -6,20 +6,30 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  top: {
     gap: Spacing.three,
     paddingVertical: Spacing.three,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
+  list: {
+    paddingBottom: Spacing.four,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
   note: {
     paddingHorizontal: Spacing.three,
   },
-  button: {
-    marginHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    borderRadius: 12,
-    alignItems: 'center',
+  loading: {
+    marginTop: Spacing.four,
   },
 });

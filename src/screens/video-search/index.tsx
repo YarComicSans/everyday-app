@@ -1,44 +1,134 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Pressable, View } from 'react-native';
 
 import { ThemedText } from '@/base/themed-text';
 import { ThemedView } from '@/base/themed-view';
 import { VideoRow } from '@/components/video-row';
-import { useTheme } from '@/hooks/use-theme';
+import { useAsync } from '@/hooks/use-async';
+import { type HistoryEntry, useHistory } from '@/services/history';
+import { search, type VideoSummary } from '@/services/youtube';
 
+import { SearchBox } from './components/search-box';
+import { SearchFailure } from './components/search-failure';
+import { metaOf, progressOf, searchFailure, submitTarget, type WatchParams } from './helpers';
 import { styles } from './styles';
 
-/** Placeholder until the real Search screen lands; opens a sample Watch page. */
-const SAMPLE = {
-  id: 'jNQXAC9IVRw',
-  title: 'Me at the zoo',
-  channel: 'jawed',
-  durationSeconds: 19,
-  thumbnailUrl: 'https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg',
-};
-
-const openSample = () => router.push({ pathname: '/video/watch', params: { id: SAMPLE.id, t: '5' } });
+const openWatch = (params: WatchParams) => router.push({ pathname: '/video/watch', params });
 
 export default function VideoSearchScreen() {
-  const theme = useTheme();
+  const history = useHistory();
+  const [text, setText] = useState('');
+  // The submitted query; null shows History.
+  const [query, setQuery] = useState<string | null>(null);
+  const results = useAsync(`search:${query ?? ''}`, () =>
+    query ? search(query) : Promise.resolve<VideoSummary[]>([]),
+  );
+
+  const failure = query && results.status === 'error' ? searchFailure(results.error) : null;
+  const offline = failure?.offline ?? false;
+
+  const byId = useMemo(() => new Map(history.entries.map((e) => [e.videoId, e])), [history.entries]);
+
+  const changeText = useCallback((next: string) => {
+    setText(next);
+    if (!next.trim()) setQuery(null);
+  }, []);
+
+  const submit = () => {
+    const target = submitTarget(text);
+    if (!target) return;
+    if (target.type === 'watch') openWatch(target.params);
+    else if (target.query === query) results.retry();
+    else setQuery(target.query);
+  };
+
+  const { remove, clear } = history;
+  const confirmRemove = useCallback(
+    (entry: HistoryEntry) =>
+      Alert.alert('Remove from History?', entry.title, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => remove(entry.videoId) },
+      ]),
+    [remove],
+  );
+  const confirmClear = () =>
+    Alert.alert('Clear History?', 'All Videos and Resume Positions will be removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: clear },
+    ]);
+
+  const showHistory = !query || offline;
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-          Search is coming soon.
-        </ThemedText>
-        <VideoRow {...SAMPLE} meta="Sample video" progress={0.3} onPress={openSample} />
-        <Pressable
-          onPress={openSample}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.button,
-            { backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement },
-          ]}>
-          <ThemedText type="smallBold">Open sample Watch page</ThemedText>
-        </Pressable>
-      </ScrollView>
+      <View style={styles.top}>
+        <SearchBox value={text} onChangeText={changeText} onSubmit={submit} disabled={offline} />
+        {failure && <SearchFailure failure={failure} onRetry={results.retry} />}
+      </View>
+
+      {showHistory ? (
+        <FlatList
+          data={history.entries}
+          keyExtractor={(entry) => entry.videoId}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            history.entries.length > 0 ? (
+              <View style={styles.sectionHeader}>
+                <ThemedText type="smallBold">History</ThemedText>
+                <Pressable onPress={confirmClear} accessibilityRole="button" hitSlop={8}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Clear History
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : undefined
+          }
+          ListEmptyComponent={
+            <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+              Videos you watch will appear here.
+            </ThemedText>
+          }
+          renderItem={({ item }) => (
+            <VideoRow
+              thumbnailUrl={item.thumbnailUrl}
+              title={item.title}
+              channel={item.channel}
+              durationSeconds={item.durationSeconds}
+              progress={progressOf(item)}
+              onPress={() => openWatch({ id: item.videoId })}
+              onLongPress={() => confirmRemove(item)}
+            />
+          )}
+        />
+      ) : results.status === 'loading' ? (
+        <ActivityIndicator style={styles.loading} />
+      ) : results.status === 'success' ? (
+        <FlatList
+          data={results.data}
+          keyExtractor={(video) => video.id}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+              No results for “{query}”.
+            </ThemedText>
+          }
+          renderItem={({ item }) => (
+            <VideoRow
+              thumbnailUrl={item.thumbnailUrl}
+              title={item.title}
+              channel={item.channel}
+              durationSeconds={item.durationSeconds}
+              meta={metaOf(item)}
+              progress={progressOf(byId.get(item.id))}
+              onPress={() => openWatch({ id: item.id })}
+            />
+          )}
+        />
+      ) : null}
     </ThemedView>
   );
 }
