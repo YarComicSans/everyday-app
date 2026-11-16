@@ -48,3 +48,17 @@ export function searchFailure(error: unknown): SearchFailure {
       return { message: 'Search failed', offline: false };
   }
 }
+
+/**
+ * Whether Search is offline, and the failure to show, from the network's internet reachability
+ * (`undefined` while unknown) and the last search's failure. A known reachability wins, so Search
+ * disables itself as soon as the internet is gone and re-enables once it is back.
+ */
+export function searchAvailability(
+  reachable: boolean | undefined,
+  failure: SearchFailure | null,
+): { offline: boolean; failure: SearchFailure | null } {
+  if (reachable === false) return { offline: true, failure: searchFailure(new VideoError('offline')) };
+  if (reachable === true && failure?.offline) return { offline: false, failure: null };
+  return { offline: failure?.offline ?? false, failure };
+}

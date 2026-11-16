@@ -2,7 +2,7 @@ import type { HistoryEntry } from '@/services/history';
 
 import { VideoError } from '@/services/youtube';
 
-import { metaOf, progressOf, searchFailure, submitTarget } from '../helpers';
+import { metaOf, progressOf, searchAvailability, searchFailure, submitTarget } from '../helpers';
 
 describe('submitTarget', () => {
   it('opens the Watch page for a Video Link', () => {
@@ -96,5 +96,30 @@ describe('searchFailure', () => {
     new Error('boom'),
   ])('reports anything else as a failed search', (error) => {
     expect(searchFailure(error)).toEqual({ message: 'Search failed', offline: false });
+  });
+});
+
+describe('searchAvailability', () => {
+  const offline = searchFailure(new VideoError('offline'));
+  const limited = searchFailure(new VideoError('limited'));
+
+  it('disables Search and says so while the network reports no internet, even before searching', () => {
+    expect(searchAvailability(false, null)).toEqual({ offline: true, failure: offline });
+    expect(searchAvailability(false, limited)).toEqual({ offline: true, failure: offline });
+  });
+
+  it('re-enables Search by itself once the internet is back, dropping the offline failure', () => {
+    expect(searchAvailability(true, offline)).toEqual({ offline: false, failure: null });
+  });
+
+  it('keeps other failures once online', () => {
+    expect(searchAvailability(true, limited)).toEqual({ offline: false, failure: limited });
+    expect(searchAvailability(true, null)).toEqual({ offline: false, failure: null });
+  });
+
+  it('falls back to the last search failure while reachability is unknown', () => {
+    expect(searchAvailability(undefined, offline)).toEqual({ offline: true, failure: offline });
+    expect(searchAvailability(undefined, limited)).toEqual({ offline: false, failure: limited });
+    expect(searchAvailability(undefined, null)).toEqual({ offline: false, failure: null });
   });
 });

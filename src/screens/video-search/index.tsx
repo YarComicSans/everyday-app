@@ -1,3 +1,4 @@
+import { useNetworkState } from 'expo-network';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, View } from 'react-native';
@@ -6,12 +7,12 @@ import { ThemedText } from '@/base/themed-text';
 import { ThemedView } from '@/base/themed-view';
 import { VideoRow } from '@/components/video-row';
 import { useAsync } from '@/hooks/use-async';
-import { type HistoryEntry, useHistory } from '@/services/history';
+import { useHistory } from '@/services/history';
 import { search, type VideoSummary } from '@/services/youtube';
 
 import { SearchBox } from './components/search-box';
 import { SearchFailure } from './components/search-failure';
-import { metaOf, progressOf, searchFailure, submitTarget, type WatchParams } from './helpers';
+import { metaOf, progressOf, searchAvailability, searchFailure, submitTarget, type WatchParams } from './helpers';
 import { styles } from './styles';
 
 const openWatch = (params: WatchParams) => router.push({ pathname: '/video/watch', params });
@@ -25,8 +26,11 @@ export default function VideoSearchScreen() {
     query ? search(query) : Promise.resolve<VideoSummary[]>([]),
   );
 
-  const failure = query && results.status === 'error' ? searchFailure(results.error) : null;
-  const offline = failure?.offline ?? false;
+  const network = useNetworkState();
+  const { offline, failure } = searchAvailability(
+    network.isInternetReachable,
+    query && results.status === 'error' ? searchFailure(results.error) : null,
+  );
 
   const byId = useMemo(() => new Map(history.entries.map((e) => [e.videoId, e])), [history.entries]);
 
@@ -44,21 +48,14 @@ export default function VideoSearchScreen() {
   };
 
   const { remove, clear } = history;
-  const confirmRemove = useCallback(
-    (entry: HistoryEntry) =>
-      Alert.alert('Remove from History?', entry.title, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => remove(entry.videoId) },
-      ]),
-    [remove],
-  );
   const confirmClear = () =>
     Alert.alert('Clear History?', 'All Videos and Resume Positions will be removed.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: clear },
     ]);
 
-  const showHistory = !query || offline;
+  // History stays browsable while offline, and after a failure that no longer applies (back online).
+  const showHistory = !query || offline || (results.status === 'error' && !failure);
 
   return (
     <ThemedView style={styles.container}>
@@ -98,7 +95,7 @@ export default function VideoSearchScreen() {
               durationSeconds={item.durationSeconds}
               progress={progressOf(item)}
               onPress={() => openWatch({ id: item.videoId })}
-              onLongPress={() => confirmRemove(item)}
+              onLongPress={() => remove(item.videoId)}
             />
           )}
         />
