@@ -1,5 +1,22 @@
 export type VideoErrorKind = 'limited' | 'unplayable' | 'unavailable' | 'offline' | 'failed';
 
+/** Where a failure outside this service happened, for errors the Watch page raises during playback. */
+export type PlaybackErrorCode = 'load' | 'source' | 'player' | 'quality' | 'resume' | 'reresolve' | 'foreground';
+
+/** The short identifier shown and reported with a `failed` error. */
+export type VideoErrorCode =
+  /** An HTTP failure, e.g. `http-500`. */
+  | `http-${number}`
+  /** A playability status this service does not map, lower-cased, e.g. `status-live_stream_offline`. */
+  | `status-${Lowercase<string>}`
+  | 'playability'
+  | 'parse'
+  | 'runtime'
+  | 'no-hls'
+  | 'no-client'
+  | 'unknown'
+  | PlaybackErrorCode;
+
 /**
  * The only error the `youtube` service throws. Screens switch on `kind`:
  * - `limited`: bot wall or rate limit ("YouTube is limiting this network")
@@ -10,9 +27,9 @@ export type VideoErrorKind = 'limited' | 'unplayable' | 'unavailable' | 'offline
  */
 export class VideoError extends Error {
   kind: VideoErrorKind;
-  code?: string;
+  code?: VideoErrorCode;
 
-  constructor(kind: VideoErrorKind, opts: { code?: string; detail?: string; cause?: unknown } = {}) {
+  constructor(kind: VideoErrorKind, opts: { code?: VideoErrorCode; detail?: string; cause?: unknown } = {}) {
     super(opts.detail ? `${kind}: ${opts.detail}` : kind, { cause: opts.cause });
     this.name = 'VideoError';
     this.kind = kind;
@@ -39,7 +56,10 @@ export function playabilityError(status: string, reason = ''): VideoError | null
     case 'ERROR':
       return new VideoError('unavailable', { detail });
     default:
-      return new VideoError('failed', { code: status.toLowerCase() || 'playability', detail });
+      return new VideoError('failed', {
+        code: status ? `status-${status.toLowerCase() as Lowercase<string>}` : 'playability',
+        detail,
+      });
   }
 }
 

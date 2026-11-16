@@ -7,8 +7,8 @@ export type VideoRowProps = {
   durationSeconds: number;
   /** Optional "views · age" line, already formatted, e.g. `1.2M views · 3 years ago`. */
   meta?: string;
-  /** Watched fraction, 0–1; the bar is hidden when absent or 0. */
-  progress?: number;
+  /** How much of the Video was watched, 0–1; the bar is hidden when absent or 0. */
+  watchedFraction?: number;
   onPress: () => void;
   onLongPress?: () => void;
 };

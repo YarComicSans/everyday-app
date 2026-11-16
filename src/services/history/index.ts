@@ -15,5 +15,4 @@ export const clear = history.clear;
 /** `{ entries, remove, clear, refresh }`, re-read whenever the screen regains focus. */
 export const useHistory = () => useHistoryOf(history);
 
-export { MIN_RESUME_SECONDS, WATCHED_FRACTION } from './rules';
 export type { HistoryEntry, HistoryVideo } from './types';

@@ -23,6 +23,8 @@
  * synthesized from the removed-video response with the playability status
  * YouTube sends when it blocks a network ("Sign in to confirm you're not a
  * bot"); next.<BOT_WALL_ID>.json is a copy of the removed one.
+ * A private Video needs one we know stays private, so player.<PRIVATE_ID>.json is
+ * synthesized the same way with the status YouTube sends for one ("Private video").
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -39,6 +41,7 @@ const VIDEOS = {
   removed: 'aaaaaaaaaaa',
 };
 const BOT_WALL_ID = 'botwallbot0';
+const PRIVATE_ID = 'privatevid0';
 const PLACEHOLDER_IP = '203.0.113.7';
 
 Log.setLevel(Log.Level.ERROR);
@@ -75,15 +78,25 @@ for (const id of Object.values(VIDEOS)) {
   await yt.getInfo(id, { client: 'VISIONOS' }).catch((e) => console.log(`${id}: ${e.message}`));
 }
 
-const botWall = JSON.parse(recorded.get(`player.${VIDEOS.removed}.json`));
-botWall.playabilityStatus = {
+/** Records `id` as the removed Video's responses with another playability status. */
+function synthesize(id, playabilityStatus) {
+  const player = JSON.parse(recorded.get(`player.${VIDEOS.removed}.json`));
+  player.playabilityStatus = playabilityStatus;
+  delete player.videoDetails;
+  recorded.set(`player.${id}.json`, JSON.stringify(player));
+  recorded.set(`next.${id}.json`, recorded.get(`next.${VIDEOS.removed}.json`));
+}
+
+synthesize(BOT_WALL_ID, {
   status: 'LOGIN_REQUIRED',
   reason: 'Sign in to confirm you’re not a bot',
   messages: ['This helps protect our community. Learn more'],
-};
-delete botWall.videoDetails;
-recorded.set(`player.${BOT_WALL_ID}.json`, JSON.stringify(botWall));
-recorded.set(`next.${BOT_WALL_ID}.json`, recorded.get(`next.${VIDEOS.removed}.json`));
+});
+synthesize(PRIVATE_ID, {
+  status: 'LOGIN_REQUIRED',
+  reason: 'Private video',
+  messages: ['If the owner of this video has granted you access, please sign in.'],
+});
 
 const ips = new Set();
 for (const text of recorded.values()) {

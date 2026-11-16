@@ -1,3 +1,8 @@
+/** A Video's "views · age" line, skipping unknown parts; undefined when neither is known. */
+export function metaLine(video: { viewsLabel?: string; publishedLabel?: string }): string | undefined {
+  return [video.viewsLabel, video.publishedLabel].filter(Boolean).join(' · ') || undefined;
+}
+
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**

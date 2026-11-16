@@ -37,7 +37,7 @@ export const styles = StyleSheet.create({
     fontWeight: 600,
     fontVariant: ['tabular-nums'],
   },
-  progressTrack: {
+  watchedTrack: {
     position: 'absolute',
     left: 0,
     right: 0,
@@ -45,7 +45,7 @@ export const styles = StyleSheet.create({
     height: 3,
     backgroundColor: 'rgba(255, 255, 255, 0.35)',
   },
-  progressFill: {
+  watchedFill: {
     height: '100%',
     backgroundColor: PROGRESS_COLOR,
   },

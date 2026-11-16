@@ -2,7 +2,7 @@ import type { HistoryEntry } from '@/services/history';
 
 import { VideoError } from '@/services/youtube';
 
-import { metaOf, progressOf, searchFailure, submitTarget } from '../helpers';
+import { searchAvailability, searchFailure, submitTarget, watchedFraction } from '../helpers';
 
 describe('submitTarget', () => {
   it('opens the Watch page for a Video Link', () => {
@@ -51,30 +51,18 @@ const entry = (over: Partial<HistoryEntry> = {}): HistoryEntry => ({
   ...over,
 });
 
-describe('progressOf', () => {
+describe('watchedFraction', () => {
   it('is the Resume Position as a fraction of the duration', () => {
-    expect(progressOf(entry({ resumePosition: 50, durationSeconds: 200 }))).toBe(0.25);
+    expect(watchedFraction(entry({ resumePosition: 50, durationSeconds: 200 }))).toBe(0.25);
   });
 
   it('is full for a Watched Video', () => {
-    expect(progressOf(entry({ resumePosition: 196, watched: true }))).toBe(1);
+    expect(watchedFraction(entry({ resumePosition: 196, watched: true }))).toBe(1);
   });
 
   it('is absent when there is no entry or the duration is unknown', () => {
-    expect(progressOf(undefined)).toBeUndefined();
-    expect(progressOf(entry({ durationSeconds: 0 }))).toBeUndefined();
-  });
-});
-
-describe('metaOf', () => {
-  it('joins views and age', () => {
-    expect(metaOf({ viewsLabel: '1.2M views', publishedLabel: '3 years ago' })).toBe('1.2M views · 3 years ago');
-  });
-
-  it('shows whichever part is known, or nothing', () => {
-    expect(metaOf({ viewsLabel: '12 views' })).toBe('12 views');
-    expect(metaOf({ publishedLabel: '1 day ago' })).toBe('1 day ago');
-    expect(metaOf({})).toBeUndefined();
+    expect(watchedFraction(undefined)).toBeUndefined();
+    expect(watchedFraction(entry({ durationSeconds: 0 }))).toBeUndefined();
   });
 });
 
@@ -96,5 +84,30 @@ describe('searchFailure', () => {
     new Error('boom'),
   ])('reports anything else as a failed search', (error) => {
     expect(searchFailure(error)).toEqual({ message: 'Search failed', offline: false });
+  });
+});
+
+describe('searchAvailability', () => {
+  const offline = searchFailure(new VideoError('offline'));
+  const limited = searchFailure(new VideoError('limited'));
+
+  it('disables Search and says so while the network reports no internet, even before searching', () => {
+    expect(searchAvailability(false, null)).toEqual({ offline: true, failure: offline });
+    expect(searchAvailability(false, limited)).toEqual({ offline: true, failure: offline });
+  });
+
+  it('re-enables Search by itself once the internet is back, dropping the offline failure', () => {
+    expect(searchAvailability(true, offline)).toEqual({ offline: false, failure: null });
+  });
+
+  it('keeps other failures once online', () => {
+    expect(searchAvailability(true, limited)).toEqual({ offline: false, failure: limited });
+    expect(searchAvailability(true, null)).toEqual({ offline: false, failure: null });
+  });
+
+  it('falls back to the last search failure while reachability is unknown', () => {
+    expect(searchAvailability(undefined, offline)).toEqual({ offline: true, failure: offline });
+    expect(searchAvailability(undefined, limited)).toEqual({ offline: false, failure: limited });
+    expect(searchAvailability(undefined, null)).toEqual({ offline: false, failure: null });
   });
 });

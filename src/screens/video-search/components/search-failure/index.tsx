@@ -1,12 +1,10 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { ThemedText } from '@/base/themed-text';
-import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-import type { SearchFailure as Failure } from '../../helpers';
-
-type SearchFailureProps = { failure: Failure; onRetry: () => void };
+import { styles } from './styles';
+import type { SearchFailureProps } from './types';
 
 /** A failed search: one message, an optional hint, and Retry. */
 export function SearchFailure({ failure, onRetry }: SearchFailureProps) {
@@ -32,17 +30,3 @@ export function SearchFailure({ failure, onRetry }: SearchFailureProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    alignItems: 'center',
-  },
-  retry: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    paddingVertical: Spacing.three,
-    borderRadius: 12,
-  },
-});

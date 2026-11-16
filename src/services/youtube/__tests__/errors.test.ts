@@ -1,5 +1,5 @@
 import { loadVideo, resolveStream, search, VideoError, type VideoErrorKind } from '..';
-import { BOT_WALL_ID, installFakeYouTube } from '../__fixtures__/replay';
+import { BOT_WALL_ID, installFakeYouTube, PRIVATE_ID } from '../__fixtures__/replay';
 
 const youtube = installFakeYouTube();
 
@@ -23,6 +23,7 @@ describe.each([
   it.each<[string, string, VideoErrorKind]>([
     ['a made-for-kids Video (UNPLAYABLE)', 'XqZsoesa55w', 'unplayable'],
     ['a removed Video', 'aaaaaaaaaaa', 'unavailable'],
+    ['a private Video', PRIVATE_ID, 'unavailable'],
     ['the bot wall', BOT_WALL_ID, 'limited'],
   ])('reports %s as %s', async (_label, id, kind) => {
     const error = await failure(load(id));
