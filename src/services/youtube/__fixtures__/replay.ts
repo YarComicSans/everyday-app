@@ -12,6 +12,7 @@ export type Network =
   | { mode: 'status'; endpoint: string; status: number };
 
 export const BOT_WALL_ID = 'botwallbot0';
+export const PRIVATE_ID = 'privatevid0';
 
 export function installFakeYouTube() {
   let network: Network = { mode: 'replay' };
