@@ -1,3 +1,5 @@
+import { VideoError } from '@/services/youtube';
+
 /** The `t=` route param as seconds, or undefined when it is missing or not a valid position. */
 export function parseStartAt(t: string | undefined): number | undefined {
   const seconds = t ? Number(t) : NaN;
@@ -32,4 +34,27 @@ export function infoLine(video: Labels & { channel: string }): string {
 /** A Related Video row's `views · age` line, or undefined when neither is known. */
 export function relatedMeta(video: Labels): string | undefined {
   return [video.viewsLabel, video.publishedLabel].filter(Boolean).join(' · ') || undefined;
+}
+
+/**
+ * What to do about a player error. A Stream YouTube rejects with a 403 (usually an expired link)
+ * is re-resolved once; a second failure in a row, or any other error, is shown as `failed`.
+ */
+export function playerErrorOutcome(
+  message: string,
+  reResolvedInARow: boolean,
+): { reResolve: true } | { error: VideoError } {
+  const forbidden = /\b403\b/.test(message);
+  if (forbidden && !reResolvedInARow) return { reResolve: true };
+  return {
+    error: new VideoError('failed', {
+      code: forbidden ? 'http-403' : 'player',
+      detail: message,
+    }),
+  };
+}
+
+/** The Video's page on youtube.com, for "Open in YouTube". */
+export function youtubeWatchUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
 }

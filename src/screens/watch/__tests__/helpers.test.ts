@@ -1,4 +1,13 @@
-import { infoLine, isRealEnd, isSaveDue, parseStartAt, relatedMeta, startPosition } from '../helpers';
+import {
+  infoLine,
+  isRealEnd,
+  isSaveDue,
+  parseStartAt,
+  playerErrorOutcome,
+  relatedMeta,
+  startPosition,
+  youtubeWatchUrl,
+} from '../helpers';
 
 describe('startPosition', () => {
   const resumeAt = () => 42;
@@ -45,7 +54,11 @@ describe('isRealEnd', () => {
 describe('infoLine', () => {
   it('joins channel, views and age with middots', () => {
     expect(
-      infoLine({ channel: 'Blender', viewsLabel: '1.2M views', publishedLabel: '3 years ago' }),
+      infoLine({
+        channel: 'Blender',
+        viewsLabel: '1.2M views',
+        publishedLabel: '3 years ago',
+      }),
     ).toBe('Blender · 1.2M views · 3 years ago');
   });
 
@@ -60,5 +73,40 @@ describe('relatedMeta', () => {
     expect(relatedMeta({ viewsLabel: '5K views', publishedLabel: '1 day ago' })).toBe('5K views · 1 day ago');
     expect(relatedMeta({ viewsLabel: '5K views' })).toBe('5K views');
     expect(relatedMeta({})).toBeUndefined();
+  });
+});
+
+describe('playerErrorOutcome', () => {
+  const android403 = 'a playback exception has returned: source error Response code: 403';
+
+  it('re-resolves a Stream rejected with a 403 once', () => {
+    expect(playerErrorOutcome(android403, false)).toEqual({ reResolve: true });
+  });
+
+  it('recognises the 403 in an iOS-style message too', () => {
+    expect(playerErrorOutcome('CoreMediaErrorDomain error -12660 - HTTP 403: Forbidden', false)).toEqual({
+      reResolve: true,
+    });
+  });
+
+  it('shows the error on a second 403 in a row instead of looping', () => {
+    expect(playerErrorOutcome(android403, true)).toMatchObject({
+      error: { kind: 'failed', code: 'http-403' },
+    });
+  });
+
+  it('shows any other player error as a failed playback', () => {
+    expect(playerErrorOutcome('source error Response code: 500', false)).toMatchObject({
+      error: { kind: 'failed', code: 'player' },
+    });
+    expect(playerErrorOutcome('decoder init failed (code 4030)', false)).toMatchObject({
+      error: { kind: 'failed', code: 'player' },
+    });
+  });
+});
+
+describe('youtubeWatchUrl', () => {
+  it('links to the Video on youtube.com', () => {
+    expect(youtubeWatchUrl('aqz-KE-bpKQ')).toBe('https://www.youtube.com/watch?v=aqz-KE-bpKQ');
   });
 });
