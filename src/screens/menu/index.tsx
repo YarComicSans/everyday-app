@@ -16,6 +16,13 @@ export default function MenuScreen() {
           href="/bus-timetable"
           color="#3E63DD"
         />
+        <MenuTile
+          title="Videos"
+          subtitle="Search · History"
+          icon={{ ios: 'play.rectangle.fill', android: 'smart_display', web: 'smart_display' }}
+          href="/video"
+          color="#E5484D"
+        />
       </ScrollView>
     </ThemedView>
   );

@@ -15,6 +15,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: 'Menu' }} />
         <Stack.Screen name="bus-timetable/index" options={{ title: 'Pick lines' }} />
         <Stack.Screen name="bus-timetable/timetable" options={{ title: 'Timetable' }} />
+        {/* The Video Section has its own Stack (src/app/video/_layout.tsx) with its own headers. */}
+        <Stack.Screen name="video" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
