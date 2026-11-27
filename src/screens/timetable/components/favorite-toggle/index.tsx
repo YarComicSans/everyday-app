@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, Text } from 'react-native';
+import { Platform, Pressable, Text } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 
@@ -19,16 +19,17 @@ export function FavoriteToggle({ saved, onPress }: FavoriteToggleProps) {
       accessibilityState={{ selected: saved }}
       accessibilityLabel={saved ? 'Remove from Favorites' : 'Save as Favorite'}
       style={({ pressed }) => [styles.button, { opacity: pressed ? 0.6 : 1 }]}>
-      <SymbolView
-        name={
-          saved
-            ? { ios: 'star.fill', android: 'star', web: 'star' }
-            : { ios: 'star', android: 'star_outline', web: 'star_outline' }
-        }
-        tintColor={color}
-        size={22}
-        fallback={<Text style={[styles.fallback, { color }]}>{saved ? '★' : '☆'}</Text>}
-      />
+      {saved && Platform.OS !== 'ios' ? (
+        // Material Symbols draw every star as an outline; a solid glyph keeps "saved" unmistakable.
+        <Text style={[styles.fallback, { color }]}>★</Text>
+      ) : (
+        <SymbolView
+          name={saved ? 'star.fill' : { ios: 'star', android: 'star_outline', web: 'star_outline' }}
+          tintColor={color}
+          size={22}
+          fallback={<Text style={[styles.fallback, { color }]}>{saved ? '★' : '☆'}</Text>}
+        />
+      )}
     </Pressable>
   );
 }
