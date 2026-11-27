@@ -1,13 +1,16 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/base/themed-text';
 import { ThemedView } from '@/base/themed-view';
+import { DepartureRow } from '@/components/departure-row';
+import type { RowStatus } from '@/components/departure-row/types';
 import { ErrorView } from '@/components/error-view';
 import { useAsync } from '@/hooks/use-async';
 import { useNow } from '@/hooks/use-now';
+import { favoriteKey, useFavorites } from '@/services/favorites';
 import {
   combineDepartures,
   DAY_TYPE_LABEL,
@@ -24,14 +27,38 @@ import {
   type Route,
 } from '@/services/gspns';
 
-import { DepartureRow } from './components/departure-row';
-import type { RowStatus } from './components/departure-row/types';
+import { FavoriteDialog } from './components/favorite-dialog';
+import type { FavoriteDialogMode } from './components/favorite-dialog/types';
+import { FavoriteToggle } from './components/favorite-toggle';
 import { missingText, nowSummary, rowLayout, stopDetails } from './helpers';
 import { styles } from './styles';
 
 export default function TimetableScreen() {
   const { lines: linesParam } = useLocalSearchParams<{ lines?: string }>();
   const selection = useMemo(() => decodeSelection(linesParam), [linesParam]);
+  const { favorites, save, remove } = useFavorites();
+  const favorite = favorites.find((f) => f.key === favoriteKey(selection));
+  const [dialog, setDialog] = useState<FavoriteDialogMode | null>(null);
+  const confirmDialog = (name: string) => {
+    if (favorite) remove(favorite.key);
+    else save(selection, name);
+    setDialog(null);
+  };
+  // Rendered in every state, so the star and title don't wait for the timetable to load.
+  const favoriteControls = selection.length > 0 && (
+    <>
+      {favorite && <Stack.Title>{favorite.name}</Stack.Title>}
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.View>
+          <FavoriteToggle
+            saved={favorite !== undefined}
+            onPress={() => setDialog(favorite ? { kind: 'remove', name: favorite.name } : { kind: 'save' })}
+          />
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
+      <FavoriteDialog mode={dialog} onConfirm={confirmDialog} onCancel={() => setDialog(null)} />
+    </>
+  );
   const now = useNow();
   const service = getServiceDay(now);
   /** Fractional service minute, for "in N min" and which stop is next. */
@@ -67,6 +94,7 @@ export default function TimetableScreen() {
   if (result.status === 'error') {
     return (
       <ThemedView style={styles.container}>
+        {favoriteControls}
         <ErrorView error={result.error} onRetry={result.retry} />
       </ThemedView>
     );
@@ -74,6 +102,7 @@ export default function TimetableScreen() {
   if (result.status === 'loading' || !combined) {
     return (
       <ThemedView style={styles.container}>
+        {favoriteControls}
         <SafeAreaView edges={['top']}>
           <ActivityIndicator style={styles.loading} />
         </SafeAreaView>
@@ -110,6 +139,7 @@ export default function TimetableScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {favoriteControls}
       {/* iOS: the safe area includes the translucent header, so this sits below it. */}
       <SafeAreaView edges={['top']} style={styles.header}>
         <ThemedText type="smallBold">{DAY_TYPE_LABEL[result.data.day.dayType]}</ThemedText>
