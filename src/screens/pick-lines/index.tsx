@@ -15,9 +15,11 @@ import {
   encodeSelection,
   getServiceDay,
   loadLines,
+  type LineSelection,
 } from '@/services/gspns';
 
 import { DirectionPicker } from './components/direction-picker';
+import { FavoritesSection } from './components/favorites-section';
 import { LineChip } from './components/line-chip';
 import { type PickedLines, pickedSelection, toggleLine } from './helpers';
 import { styles } from './styles';
@@ -58,8 +60,13 @@ export default function PickLinesScreen() {
     .filter((l) => l !== undefined);
   const selection = pickedSelection(picked, lines);
 
-  const showTimetable = () =>
-    router.push({ pathname: '/bus-timetable/timetable', params: { lines: encodeSelection(selection) } });
+  const openTimetable = (lines: LineSelection[]) =>
+    router.push({ pathname: '/bus-timetable/timetable', params: { lines: encodeSelection(lines) } });
+  const showTimetable = () => openTimetable(selection);
+  const openFavorite = (lines: LineSelection[]) => {
+    setPicked({});
+    openTimetable(lines);
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -94,6 +101,14 @@ export default function PickLinesScreen() {
             ))}
           </View>
         )}
+
+        {/* Hidden while picking by hand; back once nothing is picked. Stays mounted to keep its data. */}
+        <FavoritesSection
+          hidden={pickedLines.length > 0}
+          lineInfos={result.data.lines}
+          now={now}
+          onOpen={openFavorite}
+        />
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={styles.footer}>

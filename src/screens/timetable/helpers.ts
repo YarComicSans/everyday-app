@@ -8,8 +8,8 @@ import {
   type Route,
 } from '@/services/gspns';
 
-import { detailsHeight, ROW_HEIGHT, SUMMARY_HEIGHT } from './components/departure-row/styles';
-import type { NowSummary, StopDetails } from './components/departure-row/types';
+import { detailsHeight, ROW_HEIGHT, SUMMARY_HEIGHT } from '@/components/departure-row/styles';
+import type { NowSummary, StopDetails } from '@/components/departure-row/types';
 
 export const missingText = (m: MissingDirection) =>
   m.terminal
